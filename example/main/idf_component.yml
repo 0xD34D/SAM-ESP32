@@ -1,0 +1,3 @@
+dependencies:
+  SAM-ESP32:
+    path: "../../components/SAM-ESP32"
