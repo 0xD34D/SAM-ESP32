@@ -10,7 +10,7 @@
 
 int debug = 0;
 
-void strcat_s(char* dest, int size, char* str) {
+void strcat_s(char* dest, int size, const char* str) {
   unsigned int dlen = strlen(dest);
   if (dlen >= size - 1) return;
   strncat(dest + dlen, str, size - dlen - 1);
