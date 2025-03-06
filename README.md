@@ -1,7 +1,7 @@
-SAM
+SAM-ESP32
 ===
 
-Software Automatic Mouth - Tiny Speech Synthesizer 
+Software Automatic Mouth - Tiny Speech Synthesizer for the ESP32
 
 
 What is SAM?
