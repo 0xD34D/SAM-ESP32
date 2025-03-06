@@ -3,12 +3,11 @@
 #include <string.h>
 
 #include "driver/i2s_std.h"
+#include "esp32_sam.h"
 #include "esp_console.h"
 #include "esp_err.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
-#include "reciter.h"
-#include "sam.h"
 
 #define PROMPT_STR CONFIG_IDF_TARGET
 
@@ -20,8 +19,6 @@ const char *TAG = "SAM-ESP32";
 
 static i2s_chan_handle_t tx_chan;  // I2S tx channel handler
 static esp_console_repl_t *repl = NULL;
-
-int debug = 0;
 
 static int console_configure_sam(int argc, char **argv);
 static int console_say_text(int argc, char **argv);
@@ -42,11 +39,6 @@ const esp_console_cmd_t cmds[] = {
 };
 
 static int min(int l, int r) { return l < r ? l : r; }
-static void strcat_s(char *dest, int size, char *str) {
-  unsigned int dlen = strlen(dest);
-  if (dlen >= size - 1) return;
-  strncat(dest + dlen, str, size - dlen - 1);
-}
 
 void setup_i2s(int ws_pin, int dout_pin, int clk_pin, uint32_t sample_rate_hz) {
   i2s_std_config_t tx_std_cfg = {
@@ -76,14 +68,9 @@ void setup_i2s(int ws_pin, int dout_pin, int clk_pin, uint32_t sample_rate_hz) {
 }
 
 void sam_speak() {
-  if (!SAMMain()) {
-    ESP_LOGE(TAG, "Failed to run SAMMain");
-    return;
-  }
-
-  ESP_LOGI(TAG, "Buffer: %p, Length: %d", GetBuffer(), GetBufferLength());
-  char *buf = GetBuffer();
-  int buf_len = GetBufferLength();
+  char *buf = sam_get_buffer();
+  int buf_len = sam_get_buffer_length();
+  ESP_LOGI(TAG, "Buffer: %p, Length: %d", buf, buf_len);
 
   int16_t *output_buf = (int16_t *)malloc(buf_len * 2);
   if (output_buf == NULL) {
@@ -182,20 +169,22 @@ static int console_configure_sam(int argc, char **argv) {
       strcat_s((char *)input, 256, " ");
     } else {
       if (strcmp(&argv[i][1], "sing") == 0) {
-        EnableSingmode();
+        sam_enable_sing_mode(1);
+        i++;
       } else if (strcmp(&argv[i][1], "debug") == 0) {
-        debug = 1;
+        sam_enable_debug(1);
+        i++;
       } else if (strcmp(&argv[i][1], "pitch") == 0) {
-        SetPitch((unsigned char)min(atoi(argv[i + 1]), 255));
+        sam_set_pitch((unsigned char)min(atoi(argv[i + 1]), 255));
         i++;
       } else if (strcmp(&argv[i][1], "speed") == 0) {
-        SetSpeed((unsigned char)min(atoi(argv[i + 1]), 255));
+        sam_set_speed((unsigned char)min(atoi(argv[i + 1]), 255));
         i++;
       } else if (strcmp(&argv[i][1], "mouth") == 0) {
-        SetMouth((unsigned char)min(atoi(argv[i + 1]), 255));
+        sam_set_mouth((unsigned char)min(atoi(argv[i + 1]), 255));
         i++;
       } else if (strcmp(&argv[i][1], "throat") == 0) {
-        SetThroat((unsigned char)min(atoi(argv[i + 1]), 255));
+        sam_set_throat((unsigned char)min(atoi(argv[i + 1]), 255));
         i++;
       } else {
         print_config_usage();
@@ -215,15 +204,15 @@ static int console_say_text(int argc, char **argv) {
     return 1;
   }
 
-  unsigned char input[256];
+  char input[256];
   memset(input, 0, 256);
 
   int phonetic = 0;
   int i = 1;
   while (i < argc) {
     if (argv[i][0] != '-') {
-      strcat_s((char *)input, 256, argv[i]);
-      strcat_s((char *)input, 256, " ");
+      strcat_s(input, 256, argv[i]);
+      strcat_s(input, 256, " ");
     } else {
       if (strcmp(&argv[i][1], "phonetic") == 0) {
         phonetic = 1;
@@ -236,25 +225,9 @@ static int console_say_text(int argc, char **argv) {
     i++;
   }
 
-  for (i = 0; input[i] != 0; i++)
-    input[i] = (unsigned char)toupper((int)input[i]);
+  for (i = 0; input[i] != 0; i++) input[i] = toupper((int)input[i]);
 
-  if (debug) {
-    if (phonetic)
-      printf("phonetic input: %s\n", input);
-    else
-      printf("text input: %s\n", input);
-  }
-
-  if (!phonetic) {
-    strcat_s((char *)input, 256, "[");
-    if (!TextToPhonemes(input)) return 1;
-    if (debug) printf("phonetic input: %s\n", input);
-  } else {
-    strcat_s((char *)input, 256, "\x9b");
-  }
-
-  SetInput(input);
+  sam_set_text(input, phonetic);
   sam_speak();
 
   return 0;
